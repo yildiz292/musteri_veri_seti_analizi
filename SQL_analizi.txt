@@ -1,106 +1,156 @@
-/* Bu kod hastalar tablosundan yaşı en büyük ilk 5 hastayı bulur. */
-SELECT *
-FROM hastalar
-ORDER BY yas DESC
-LIMIT 5;
-/* EN ÇOK RANDEVU ALAN DOKTOR*/
-SELECT
-    D.doktorad,
-    D.calistigiyer,
-    D.uzmanlikalani, 
-    COUNT(R.doktor_id) AS toplam_randevu_sayisi 
-FROM
-    doktorlar AS D
-INNER JOIN 
-    randevular AS R
-ON
-    D.doktor_id = R.doktor_id 
-GROUP BY
-    D.doktor_id, D.doktorad, D.calistigiyer, D.uzmanlikalani
-ORDER BY
-    toplam_randevu_sayisi DESC; 
-    
-/*Hastalar tablosunda yas stununu ayırıp onların gelmeme oranını hesapladık*/
-SELECT  CASE 
-WHEN H.yas <= 18 THEN 'Çocuk'
-WHEN H.yas > 18 AND H.yas <= 40 THEN 'Genç'
-ELSE 'Yaşlı'
-END AS yaslar,
+/* BURADA HER URUNUN TOPLAM FİYATINI VERDİK*/
+SELECT P.category,SUM(P.price * O.quantity)
+FROM products AS P JOIN orders AS O ON P.product_id=O.product_id
+GROUP BY P.category;
+/*BURADA TOPLAM URUNLERİN TOPLAM KACTANE SATILDIGI VE KAC TANESİNİN İPTAL OLDUGUNU GORUYORUZ*/
+SELECT P.category,COUNT(*) AS toplam_sipariş,
+SUM(CASE WHEN O.status = 'Cancelled' THEN 1 else 0 end) AS iptal_sayisi
+FROM products AS P JOIN orders AS O ON P.product_id = O.product_id   
+GROUP BY P.category;
+/*BURADA CATEGORİYE GORE EN COK SATILAN URUNU GORUYORUZ*/
+SELECT * FROM (
+    SELECT 
+        category, 
+        product_name, 
+        price,
+        ROW_NUMBER() OVER(PARTITION BY category ORDER BY price DESC) AS sira
+    FROM products
+) AS tablo
+WHERE sira = 1; 
+/*Kasım ayındaki yoğunluk, muhtemelen Black Friday (Efsane Cuma) indirimlerinden kaynaklanmaktadır.
+İzmirden baya var izmirin kargoda sorunları olabilir ya da baska bir nedenden.Tüketiciler sadece 1 defa gelmiş eger onlara "Ezgi'ye 'Seni özledik' temalı bir SMS atalım ve %10 indirim verelim." dersek tekrar gelebilme olasıklıklarını artırız.*/
+SELECT C.customer_name,C.city,COUNT(O.order_id),MAX(O.order_date)
+FROM customers AS C JOIN orders AS O ON C.customer_id = O.customer_id
+GROUP BY C.customer_name,C.city
+HAVING COUNT(O.order_id) = 1;
+/*ELEKTİRONİK TABLOSUNDAKİ EN PAHALI 3 ÜRÜN*/
+SELECT * FROM products  WHERE category = 'Elektronik' ORDER BY price  DESC LIMIT 3;
+/*HANGİ SEHİRDEN NE KADARLIK SİPARİŞ VERİLDİGİNİ GÖRMEK*/
+/*İzmir ve İstanbul en yüksek sipariş hacmiyle ana pazarımızı oluştururken 
+Ankara ve Antalya'daki düşük performans, bu bölgelerde acil kampanya ihtiyacına işaret etmektedir.*/
+SELECT C.city,COUNT(O.quantity) AS  toplam_miktar 
+FROM customers AS C 
+JOIN orders AS O 
+ON C.customer_id=O.customer_id 
+GROUP BY C.city;
 
-COUNT(R.randevu_id) AS toplamrandevu,
-SUM(CASE WHEN R.geldi_mi = 'Gelmedi' THEN 1 ELSE 0 END) AS gelmeyenler,
-(SUM(CASE WHEN R.geldi_mi = 'Gelmedi' THEN 1.0 ELSE 0 END) / COUNT(R.randevu_id)) AS Gelmeme_Orani
-FROM hastalar AS H JOIN randevular AS R ON H.hasta_id = R.hasta_id
-GROUP BY 
-CASE
-        WHEN H.yas <= 18 THEN 'Çocuk'
-        WHEN H.yas > 18 AND H.yas <= 40 THEN 'Genç'
-        ELSE 'Yaşli'
-    END
-ORDER BY toplamrandevu;
-/*Burda kronik hastaların randevuya gelmeme durumu yaş ve bolgeye göre oranlandı*/
-SELECT  H.bolge,
-    CASE
-        WHEN H.yas <= 18 THEN 'Cocuk'
-        WHEN H.yas > 18 AND H.yas <= 40 THEN 'Genc'
-        ELSE 'Yasli'
-    END,
+/*EN ÇOK HANGİ ŞEHİR CİROSU EN FAZLA 
+Sipariş adedinde İzmir lider olsa da, toplam ciroda Antalya ve Ankara en yüksek getiriyi sağlamaktadır. Bu durum, Ankara ve Antalya'daki müşterilerimizin yüksek birim fiyatlı ürünlere yöneldiğini kanıtlamaktadır.İzmir ve İstanbul ise daha çok sayıda ama daha düşük fiyatlı ürünlerin satıldığı "sürümden kazandıran" pazarlarımızdır.*/
+SELECT C.city,SUM(P.price * O.quantity) AS toplam_para
+FROM customers AS C JOIN orders AS O
+ON C.customer_id = O.customer_id
+JOIN products AS P 
+ON P.product_id = O.product_id
+GROUP BY C.city
+ORDER BY toplam_para DESC;
+/*AYLARA GORE TOPLAM SİPARİŞ ADETİ
+Satışlarımız yılın son aylarında (Kasım ve Aralık) zirve yapmıştır. Özellikle Kasım ayındaki yoğunluk (9 sipariş), muhtemelen "Black Friday" veya "Yıl Sonu" kampanyalarının etkisidir. Şirket, lojistik hazırlıklarını ve stok yönetimini yılın son çeyreğine odaklamalı; yılın durgun geçen ilk aylarında ise satışları canlandırmak için özel bahar kampanyaları planlamalıdır.*/
+SELECT DATE_FORMAT(order_date, '%M') AS ay_adi, 
+SUM(quantity) AS toplam_siparis
+FROM orders
+GROUP BY ay_adi
+ORDER BY MONTH(order_date);
+
+/*BURADA CATEGORİYE GORE EN COK SATILAN URUNU GORUYORUZ*/
+SELECT * FROM (
+    SELECT 
+        category, 
+        product_name, 
+        price,
+        ROW_NUMBER() OVER(PARTITION BY category ORDER BY price DESC) AS sira
+    FROM products
+) AS tablo
+WHERE sira = 1;
 
 
-COUNT(R.randevu_id) AS toplamrandevu,
-SUM(CASE WHEN R.geldi_mi = 'Gelmedi' THEN 1 ELSE 0 END) AS gelmeyenler,
-(SUM(CASE WHEN R.geldi_mi = 'Gelmedi' THEN 1.0 ELSE 0 END) / COUNT(R.randevu_id)) AS Gelmeme_Orani
-FROM hastalar AS H JOIN randevular AS R ON H.hasta_id=R.hasta_id
-WHERE H.kronik_mi = 1
-GROUP BY
-    H.bolge,
-    CASE
-        WHEN H.yas <= 18 THEN 'Cocuk'
-        WHEN H.yas > 18 AND H.yas <= 40 THEN 'Genc'
-        ELSE 'Yasli'
-    END
-ORDER BY
-    Gelmeme_Orani DESC;
-/*Burada randevuya kalan zamanı gösterdik*/
-SELECT R.randevualmatarihi,R.randevutarihi,DATEDIFF(R.randevutarihi,R.randevualmatarihi) AS Randevu_süresi,
-CASE 
-WHEN DATEDIFF(R.randevutarihi,R.randevualmatarihi)   <= 0 THEN 'RANDEVUNUZ GEÇMİŞ'
-WHEN  DATEDIFF(R.randevutarihi,R.randevualmatarihi)  <=10  THEN 'RANDEVUNUZU UNUTMAYINIZ'
-WHEN DATEDIFF(R.randevutarihi,R.randevualmatarihi)  <= 30 THEN 'RANDEVUNUZA VAR'
-ELSE 'RANDEVUNUZA DAHA VAR'
-END AS randevukategorisi
-FROM randevular AS R
-ORDER BY randevukategorisi DESC;
-/*Uzmanlık alanının toplam randevu sayısı ve buna bağlı gelmeme oranı nasıl değişmiştir*/
-SELECT D.uzmanlikalani,D.calistigiyer,R.geldi_mi,R.randevutarihi,D.doktor_id,R.randevu_id,
-CASE
-    WHEN R.randevutarihi BETWEEN '2024-01-01' AND '2024-06-30' THEN 'Yilin_Ilk_Yarisi'
-    WHEN R.randevutarihi BETWEEN '2024-07-01' AND '2024-12-31' THEN 'Yilin_Ikinci_Yarisi'
-    ELSE 'Diger'
-END AS Donem_Kategorisi,
-COUNT(R.randevu_id) AS Toplam_Randevu, 
-(SUM(CASE WHEN R.geldi_mi = 0 THEN 1.0 ELSE 0 END) / COUNT(R.randevu_id)) * 100 AS Gelmeme_Orani_Yuzde
-FROM doktorlar AS D  JOIN randevular AS R ON D.doktor_id = R.doktor_id
-GROUP BY D.uzmanlikalani,Donem_Kategorisi
-ORDER BY Donem_Kategorisi DESC;
-/*Burda doktorların uzmanlık alanına gore randevuya gelmeyen hasta sayısını verdik*/
-SELECT D.uzmanlikalani,
-COUNT(H.hasta_id) AS randevusu_gerceklesmeyen_hasta_sayısırandevular
-FROM doktorlar AS D JOIN randevular AS R ON D.doktor_id=R.doktor_id
-JOIN hastalar H ON H.hasta_id=R.hasta_id
-WHERE R.geldi_mi = 0
-GROUP BY D.uzmanlikalani
-ORDER BY randevusu_gerceklesmeyen_hasta_sayısırandevular;
+/*HİÇ SİPARİŞ VERMEMİŞ MÜŞTERİLERİ TESPİT EDİYORUZ*/
+SELECT C.customer_name,C.city
+FROM customers AS C LEFT JOIN orders AS O 
+ON C.customer_id=O.customer_id
+WHERE O.order_id IS NULL;
+/*SON 6 AYDA SİPARİŞ VERMEMİŞ MÜŞTERİLER*/
+SELECT C.customer_id, C.customer_name,C.city,MAX(O.order_date) AS sonsipariş_tarihi
+FROM customers AS C LEFT JOIN orders AS O ON C.customer_id=O.customer_id
+GROUP BY C.customer_id,C.customer_name,C.city
+HAVING sonsipariş_tarihi < DATE_SUB('2023-12-31' ,INTERVAL 6 MONTH) OR sonsipariş_tarihi IS NULL;
 
-/*Burada doktorların uzmanlık alanında 5 ten fazla olanlara 'YÜKSEK TALEP' düşük olanlara ise 'DÜŞÜK TALEP' dedik.*/
-SELECT D.uzmanlikalani,COUNT(R.randevu_id) AS Toplam_randevu_sayisi,
-IF(COUNT(R.randevu_id) > 5, 
-       'YÜKSEK TALEP', 
-       'DÜŞÜK TALEP'
-    ) AS Talep_Kategorisi
+/*VİP MÜŞTERİLER*/
+SELECT C.customer_id,C.customer_name,SUM(P.price * O.quantity) AS toplam_harcama,MAX(O.order_date) AS sonsiparistarihi
+FROM customers AS C JOIN orders AS O
+ON C.customer_id=O.customer_id
+JOIN products AS P 
+ON P.product_id = O.product_id
+GROUP BY C.customer_id,C.customer_name
+HAVING toplam_harcama > 10000
+AND sonsiparistarihi < '2023-06-23' ORDER BY toplam_harcama DESC;
+/*SATILIP CİRO GETİRMEYEN URUNLER*/
+SELECT P.category,P.product_id,SUM(O.quantity) AS toplam_adet,SUM(O.quantity * P.price) AS toplam_ciro
+FROM products AS P JOIN orders AS O 
+ON P.product_id = O.product_id
+WHERE O.status = 'Completed'
+GROUP BY P.product_id,P.category
+HAVING toplam_adet > 5 AND toplam_ciro < 2000;
+/* 2 DEN FAZLA SİPARİS VEREN MUSTERİLERİN TOPLAM CİRONUN YUZDE KACINI OLUSTURUYOR*/
+WITH Musteri_Ozet AS (
+    SELECT 
+        c.customer_id,
+        COUNT(o.order_id) AS siparis_sayisi, 
+        SUM(p.price * o.quantity) AS kisi_ciro
+    FROM customers c
+    JOIN orders o ON c.customer_id = o.customer_id
+    JOIN products p ON o.product_id = p.product_id
+    GROUP BY c.customer_id
+),
+Genel_Toplam AS (
+    SELECT SUM(price * quantity) AS dukkan_toplam_ciro 
+    FROM orders 
+    JOIN products ON orders.product_id = products.product_id
+)
+SELECT 
+    SUM(kisi_ciro) AS sadik_musteri_cirosu,
+    (SELECT dukkan_toplam_ciro FROM Genel_Toplam) AS toplam_ciro,
+    ROUND((SUM(kisi_ciro) / (SELECT dukkan_toplam_ciro FROM Genel_Toplam)) * 100, 2) AS yuzde_payi
+FROM Musteri_Ozet
+WHERE siparis_sayisi > 2; 
+/*ORTALAMA FİYATIN ÜSTÜNDE OLUP SATIŞ ADETİ DÜŞÜK OLAN ÜRÜNLERİ BUL Bu ürünler hem yüksek fiyatlı hem de fiziksel olarak çok yer kaplıyor. Örneğin, 22.000 TL'lik bir bilgisayarın depoda 1 adet bile fazladan beklemesi, dükkanın o parayı başka yere yatıramaması demektir.Teknoloji ve mobilya hızla eskiyen kategorilerdir. Bu ürünler satılmadıkça "eski model" kalma riski taşır.*/
+WITH ortalama_veri AS (
+    SELECT AVG(price) AS toplam_fiyat FROM products
+)
+SELECT P.product_id,P.product_name,P.price,SUM(O.quantity)toplam_adet
+FROM products AS P  LEFT JOIN orders AS O 
+ON P.product_id = O.product_id
+GROUP BY P.price,P.product_name
+HAVING P.price > (SELECT AVG(price) AS toplam_fiyat FROM products) AND toplam_adet < 3 OR toplam_adet IS NULL;
 
-FROM doktorlar AS D JOIN randevular AS R ON D.doktor_id = R.doktor_id
-GROUP BY D.uzmanlikalani;
+/*EN ÇOK CİRO GETİREN 3 MUSTERİ KAYBEDİLİRSE TOPLAM CİRO YÜZDE KAÇ DÜŞER
+Dükkanın cirosunun neredeyse yarısı sadece 3 kişinin iki dudağının arasında.Hesabın %43.26 bu 3 muşteri sağlıyor bu çok büyük bağımlılık*/
+WITH butun_harcama AS (
+   
+    SELECT 
+        c.customer_id, 
+        SUM(o.quantity * p.price) AS toplam_harcama 
+    FROM customers AS c 
+    JOIN orders AS o ON c.customer_id = o.customer_id 
+    JOIN products AS p ON o.product_id = p.product_id 
+    GROUP BY c.customer_id 
+    ORDER BY toplam_harcama DESC
+),
+ucloplan_ciro AS (
+   
+    SELECT SUM(toplam_harcama) AS ucmusteri_harcamasi 
+    FROM (SELECT toplam_harcama FROM butun_harcama LIMIT 3) AS t1
+),
+genel_toplam AS (
+    SELECT SUM(o.quantity * p.price) AS dukkan_toplam 
+    FROM orders AS o 
+    JOIN products AS p ON o.product_id = p.product_id
+)
+SELECT 
+    u.ucmusteri_harcamasi AS ilk_3_musteri_cirosu,
+    g.dukkan_toplam AS toplam_dukkan_cirosu,
+    ROUND((u.ucmusteri_harcamasi / g.dukkan_toplam) * 100, 2) AS kayip_yuzde_orani
+FROM ucloplan_ciro AS u, genel_toplam AS g; 
 
       
+
 
