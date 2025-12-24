@@ -1,0 +1,106 @@
+/* Bu kod hastalar tablosundan yaşı en büyük ilk 5 hastayı bulur. */
+SELECT *
+FROM hastalar
+ORDER BY yas DESC
+LIMIT 5;
+/* EN ÇOK RANDEVU ALAN DOKTOR*/
+SELECT
+    D.doktorad,
+    D.calistigiyer,
+    D.uzmanlikalani, 
+    COUNT(R.doktor_id) AS toplam_randevu_sayisi 
+FROM
+    doktorlar AS D
+INNER JOIN 
+    randevular AS R
+ON
+    D.doktor_id = R.doktor_id 
+GROUP BY
+    D.doktor_id, D.doktorad, D.calistigiyer, D.uzmanlikalani
+ORDER BY
+    toplam_randevu_sayisi DESC; 
+    
+/*Hastalar tablosunda yas stununu ayırıp onların gelmeme oranını hesapladık*/
+SELECT  CASE 
+WHEN H.yas <= 18 THEN 'Çocuk'
+WHEN H.yas > 18 AND H.yas <= 40 THEN 'Genç'
+ELSE 'Yaşlı'
+END AS yaslar,
+
+COUNT(R.randevu_id) AS toplamrandevu,
+SUM(CASE WHEN R.geldi_mi = 'Gelmedi' THEN 1 ELSE 0 END) AS gelmeyenler,
+(SUM(CASE WHEN R.geldi_mi = 'Gelmedi' THEN 1.0 ELSE 0 END) / COUNT(R.randevu_id)) AS Gelmeme_Orani
+FROM hastalar AS H JOIN randevular AS R ON H.hasta_id = R.hasta_id
+GROUP BY 
+CASE
+        WHEN H.yas <= 18 THEN 'Çocuk'
+        WHEN H.yas > 18 AND H.yas <= 40 THEN 'Genç'
+        ELSE 'Yaşli'
+    END
+ORDER BY toplamrandevu;
+/*Burda kronik hastaların randevuya gelmeme durumu yaş ve bolgeye göre oranlandı*/
+SELECT  H.bolge,
+    CASE
+        WHEN H.yas <= 18 THEN 'Cocuk'
+        WHEN H.yas > 18 AND H.yas <= 40 THEN 'Genc'
+        ELSE 'Yasli'
+    END,
+
+
+COUNT(R.randevu_id) AS toplamrandevu,
+SUM(CASE WHEN R.geldi_mi = 'Gelmedi' THEN 1 ELSE 0 END) AS gelmeyenler,
+(SUM(CASE WHEN R.geldi_mi = 'Gelmedi' THEN 1.0 ELSE 0 END) / COUNT(R.randevu_id)) AS Gelmeme_Orani
+FROM hastalar AS H JOIN randevular AS R ON H.hasta_id=R.hasta_id
+WHERE H.kronik_mi = 1
+GROUP BY
+    H.bolge,
+    CASE
+        WHEN H.yas <= 18 THEN 'Cocuk'
+        WHEN H.yas > 18 AND H.yas <= 40 THEN 'Genc'
+        ELSE 'Yasli'
+    END
+ORDER BY
+    Gelmeme_Orani DESC;
+/*Burada randevuya kalan zamanı gösterdik*/
+SELECT R.randevualmatarihi,R.randevutarihi,DATEDIFF(R.randevutarihi,R.randevualmatarihi) AS Randevu_süresi,
+CASE 
+WHEN DATEDIFF(R.randevutarihi,R.randevualmatarihi)   <= 0 THEN 'RANDEVUNUZ GEÇMİŞ'
+WHEN  DATEDIFF(R.randevutarihi,R.randevualmatarihi)  <=10  THEN 'RANDEVUNUZU UNUTMAYINIZ'
+WHEN DATEDIFF(R.randevutarihi,R.randevualmatarihi)  <= 30 THEN 'RANDEVUNUZA VAR'
+ELSE 'RANDEVUNUZA DAHA VAR'
+END AS randevukategorisi
+FROM randevular AS R
+ORDER BY randevukategorisi DESC;
+/*Uzmanlık alanının toplam randevu sayısı ve buna bağlı gelmeme oranı nasıl değişmiştir*/
+SELECT D.uzmanlikalani,D.calistigiyer,R.geldi_mi,R.randevutarihi,D.doktor_id,R.randevu_id,
+CASE
+    WHEN R.randevutarihi BETWEEN '2024-01-01' AND '2024-06-30' THEN 'Yilin_Ilk_Yarisi'
+    WHEN R.randevutarihi BETWEEN '2024-07-01' AND '2024-12-31' THEN 'Yilin_Ikinci_Yarisi'
+    ELSE 'Diger'
+END AS Donem_Kategorisi,
+COUNT(R.randevu_id) AS Toplam_Randevu, 
+(SUM(CASE WHEN R.geldi_mi = 0 THEN 1.0 ELSE 0 END) / COUNT(R.randevu_id)) * 100 AS Gelmeme_Orani_Yuzde
+FROM doktorlar AS D  JOIN randevular AS R ON D.doktor_id = R.doktor_id
+GROUP BY D.uzmanlikalani,Donem_Kategorisi
+ORDER BY Donem_Kategorisi DESC;
+/*Burda doktorların uzmanlık alanına gore randevuya gelmeyen hasta sayısını verdik*/
+SELECT D.uzmanlikalani,
+COUNT(H.hasta_id) AS randevusu_gerceklesmeyen_hasta_sayısırandevular
+FROM doktorlar AS D JOIN randevular AS R ON D.doktor_id=R.doktor_id
+JOIN hastalar H ON H.hasta_id=R.hasta_id
+WHERE R.geldi_mi = 0
+GROUP BY D.uzmanlikalani
+ORDER BY randevusu_gerceklesmeyen_hasta_sayısırandevular;
+
+/*Burada doktorların uzmanlık alanında 5 ten fazla olanlara 'YÜKSEK TALEP' düşük olanlara ise 'DÜŞÜK TALEP' dedik.*/
+SELECT D.uzmanlikalani,COUNT(R.randevu_id) AS Toplam_randevu_sayisi,
+IF(COUNT(R.randevu_id) > 5, 
+       'YÜKSEK TALEP', 
+       'DÜŞÜK TALEP'
+    ) AS Talep_Kategorisi
+
+FROM doktorlar AS D JOIN randevular AS R ON D.doktor_id = R.doktor_id
+GROUP BY D.uzmanlikalani;
+
+      
+
